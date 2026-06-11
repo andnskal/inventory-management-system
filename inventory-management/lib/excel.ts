@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { parseStockNumber } from './parse-number'
 
 export interface ParsedProductRow {
   product_code: string
@@ -33,7 +34,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedProductRow[] {
       const mappedKey = COLUMN_MAP[key.trim()]
       if (mappedKey) {
         if (mappedKey === 'normal_stock' || mappedKey === 'pending_shortage_stock') {
-          mapped[mappedKey] = Number(value) || 0
+          mapped[mappedKey] = parseStockNumber(value)
         } else {
           mapped[mappedKey] = String(value ?? '')
         }

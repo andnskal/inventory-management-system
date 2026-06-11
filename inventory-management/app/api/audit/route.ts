@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { isValidDateString, parsePagination } from '@/lib/api/validation'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -7,8 +8,11 @@ export async function GET(request: NextRequest) {
 
   const dateFrom = searchParams.get('date_from') ?? ''
   const dateTo = searchParams.get('date_to') ?? ''
-  const page = parseInt(searchParams.get('page') ?? '1', 10)
-  const pageSize = parseInt(searchParams.get('pageSize') ?? '30', 10)
+  const { page, pageSize } = parsePagination(
+    searchParams.get('page'),
+    searchParams.get('pageSize'),
+    { defaultPageSize: 30 }
+  )
 
   // Check auth
   const {
@@ -30,6 +34,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    if (dateFrom && !isValidDateString(dateFrom)) {
+      return Response.json(
+        { error: 'date_from 형식이 올바르지 않습니다(YYYY-MM-DD).' },
+        { status: 400 }
+      )
+    }
+    if (dateTo && !isValidDateString(dateTo)) {
+      return Response.json(
+        { error: 'date_to 형식이 올바르지 않습니다(YYYY-MM-DD).' },
+        { status: 400 }
+      )
+    }
+
     let query = supabase
       .from('audit_logs')
       .select('*, user:users(id, name, email)', { count: 'exact' })

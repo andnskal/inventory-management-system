@@ -1,6 +1,13 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// 조회 실패를 0/빈값으로 둔갑시키지 않기 위한 가드(2026-06-11 리뷰 #26).
+// error가 있으면 throw → 아래 try/catch가 500으로 전파한다.
+function must<T>(res: { data: T; error: { message: string } | null }): T {
+  if (res.error) throw new Error(res.error.message)
+  return res.data
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { searchParams } = request.nextUrl
@@ -33,13 +40,17 @@ export async function GET(request: NextRequest) {
 
     // 1. 재고 현황 요약 (Stock Summary)
     if (sections.includes('stock_summary')) {
-      const { data: products } = await supabase
-        .from('products')
-        .select('id, is_active')
+      const products = must(
+        await supabase.from('products').select('id, is_active')
+      )
 
-      const { data: stockSummary } = await supabase
-        .from('product_stock_summary')
-        .select('product_id, safety_stock, total_normal_stock, total_pending_shortage_stock')
+      const stockSummary = must(
+        await supabase
+          .from('product_stock_summary')
+          .select(
+            'product_id, safety_stock, total_normal_stock, total_pending_shortage_stock'
+          )
+      )
 
       const totalProducts = products?.filter((p) => p.is_active).length ?? 0
       const lowStockCount =
@@ -75,7 +86,7 @@ export async function GET(request: NextRequest) {
       if (dateFrom) txQuery = txQuery.gte('transaction_date', dateFrom)
       if (dateTo) txQuery = txQuery.lte('transaction_date', dateTo)
 
-      const { data: transactions } = await txQuery
+      const transactions = must(await txQuery)
 
       let totalIn = 0
       let totalOut = 0
@@ -128,7 +139,7 @@ export async function GET(request: NextRequest) {
       if (dateFrom) summaryQuery = summaryQuery.gte('transaction_date', dateFrom)
       if (dateTo) summaryQuery = summaryQuery.lte('transaction_date', dateTo)
 
-      const { data: dailySummary } = await summaryQuery
+      const dailySummary = must(await summaryQuery)
 
       const totalPurchase =
         dailySummary?.reduce((sum, d) => sum + (d.purchase_total ?? 0), 0) ?? 0
@@ -145,9 +156,9 @@ export async function GET(request: NextRequest) {
 
     // 4. 거래처 현황 (Partner Summary)
     if (sections.includes('partners')) {
-      const { data: partners } = await supabase
-        .from('partners')
-        .select('id, type, is_active')
+      const partners = must(
+        await supabase.from('partners').select('id, type, is_active')
+      )
 
       const activePartners = partners?.filter((p) => p.is_active) ?? []
       const supplierCount = activePartners.filter(
@@ -168,9 +179,13 @@ export async function GET(request: NextRequest) {
 
     // 5. 재고 부족 상품 (Low Stock Items)
     if (sections.includes('low_stock')) {
-      const { data: stockSummary } = await supabase
-        .from('product_stock_summary')
-        .select('product_id, product_code, name, safety_stock, total_normal_stock')
+      const stockSummary = must(
+        await supabase
+          .from('product_stock_summary')
+          .select(
+            'product_id, product_code, name, safety_stock, total_normal_stock'
+          )
+      )
 
       const lowStockItems =
         stockSummary

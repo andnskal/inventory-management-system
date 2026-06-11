@@ -189,6 +189,10 @@ export function ProductFormDialog({
       }
 
       toast.success(mode === 'create' ? '상품이 등록되었습니다.' : '상품이 수정되었습니다.')
+      // 옵션·추가필드 등 부분 저장 실패를 사용자에게 노출(무음 부분저장 방지 — 리뷰 보강)
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        toast.warning(data.warnings.join('\n'))
+      }
       onOpenChange(false)
       onSuccess()
     } catch {

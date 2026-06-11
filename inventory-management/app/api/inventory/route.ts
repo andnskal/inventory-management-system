@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { parsePagination, sanitizeSearchTerm } from '@/lib/api/validation'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -10,10 +11,31 @@ export async function GET(request: NextRequest) {
   const dateTo = searchParams.get('date_to') ?? ''
   const productSearch = searchParams.get('product') ?? ''
   const partnerId = searchParams.get('partner_id') ?? ''
-  const page = parseInt(searchParams.get('page') ?? '1', 10)
-  const pageSize = parseInt(searchParams.get('pageSize') ?? '20', 10)
+  const { page, pageSize } = parsePagination(
+    searchParams.get('page'),
+    searchParams.get('pageSize')
+  )
 
   try {
+    // 상품명/코드 검색은 DB 레벨에서 적용해야 페이지네이션·total이 정확하다(리뷰 #21).
+    // 매칭 상품 ID를 먼저 구해 .in()으로 거래를 필터한다(현재 페이지 후필터 금지).
+    let productIds: string[] | null = null
+    if (productSearch) {
+      const safe = sanitizeSearchTerm(productSearch)
+      if (safe) {
+        const { data: matched, error: matchErr } = await supabase
+          .from('products')
+          .select('id')
+          .or(`name.ilike.%${safe}%,product_code.ilike.%${safe}%`)
+        if (matchErr) {
+          return Response.json({ error: matchErr.message }, { status: 500 })
+        }
+        productIds = (matched ?? []).map((p) => p.id)
+      } else {
+        productIds = []
+      }
+    }
+
     let query = supabase
       .from('inventory_transactions')
       .select(
@@ -39,6 +61,11 @@ export async function GET(request: NextRequest) {
       query = query.eq('partner_id', partnerId)
     }
 
+    // 상품 검색이 있으면 매칭 상품으로 한정(없으면 빈 결과)
+    if (productIds !== null) {
+      query = query.in('product_id', productIds)
+    }
+
     // Pagination
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
@@ -48,20 +75,6 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       return Response.json({ error: error.message }, { status: 500 })
-    }
-
-    // Post-filter by product search (name/code) since we can't do nested ilike in select
-    let filtered = transactions ?? []
-    if (productSearch) {
-      const lower = productSearch.toLowerCase()
-      filtered = filtered.filter((t) => {
-        const p = t.product as { name?: string; product_code?: string } | null
-        if (!p) return false
-        return (
-          (p.name?.toLowerCase().includes(lower) ?? false) ||
-          (p.product_code?.toLowerCase().includes(lower) ?? false)
-        )
-      })
     }
 
     // Fetch supporting data for forms
@@ -83,8 +96,8 @@ export async function GET(request: NextRequest) {
       .order('sort_order')
 
     return Response.json({
-      transactions: filtered,
-      total: productSearch ? filtered.length : (count ?? 0),
+      transactions: transactions ?? [],
+      total: count ?? 0,
       page,
       pageSize,
       products: products ?? [],

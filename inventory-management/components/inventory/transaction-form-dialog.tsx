@@ -292,11 +292,10 @@ export function TransactionFormDialog({
                 type="number"
                 min={1}
                 value={quantity || ''}
-                onChange={(e) =>
-                  setQuantity(
-                    parseInt((e.target as HTMLInputElement).value) || 0
-                  )
-                }
+                onChange={(e) => {
+                  const n = parseInt((e.target as HTMLInputElement).value, 10)
+                  setQuantity(Number.isFinite(n) && n >= 0 ? n : 0)
+                }}
                 placeholder="0"
               />
             </div>
@@ -307,11 +306,11 @@ export function TransactionFormDialog({
                 type="number"
                 min={0}
                 value={unitPrice || ''}
-                onChange={(e) =>
-                  setUnitPrice(
-                    parseInt((e.target as HTMLInputElement).value) || 0
-                  )
-                }
+                onChange={(e) => {
+                  // 단가는 DECIMAL이므로 parseFloat로 소수 보존(parseInt는 원 단위 절사)
+                  const n = parseFloat((e.target as HTMLInputElement).value)
+                  setUnitPrice(Number.isFinite(n) && n >= 0 ? n : 0)
+                }}
                 placeholder="0"
               />
             </div>

@@ -45,6 +45,10 @@ export async function GET(request: NextRequest) {
 
     if (summaryError) {
       console.error('Daily summary error:', summaryError)
+      return Response.json(
+        { error: '일별 집계 조회에 실패했습니다.' },
+        { status: 500 }
+      )
     }
 
     // Fetch per-product aggregated data for ranking and margin
@@ -63,6 +67,10 @@ export async function GET(request: NextRequest) {
 
     if (txError) {
       console.error('Transactions error:', txError)
+      return Response.json(
+        { error: '거래 내역 조회에 실패했습니다.' },
+        { status: 500 }
+      )
     }
 
     // Aggregate per-product data

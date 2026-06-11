@@ -1,0 +1,15 @@
+# 줄바꿈 정규화 — core.autocrlf 로 인한 가짜 변경(diff 없는 ` M`) 방지
+# 기존 잡음 제거는 1회 `git add --renormalize .` 실행 필요.
+* text=auto eol=lf
+
+# 바이너리는 정규화 제외
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.zip binary
+*.xlsx binary
+*.xls binary
+*.pdf binary

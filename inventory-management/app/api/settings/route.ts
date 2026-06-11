@@ -54,12 +54,20 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { key, value } = body
 
-    // Upsert setting
-    const { data: existing } = await supabase
+    if (typeof key !== 'string' || !key.trim()) {
+      return Response.json({ error: 'key는 필수입니다.' }, { status: 400 })
+    }
+
+    // Upsert setting — 조회 실패(실제 에러)를 '없음'으로 오판하지 않도록 maybeSingle + error 검사
+    const { data: existing, error: selError } = await supabase
       .from('settings')
       .select('id')
       .eq('key', key)
-      .single()
+      .maybeSingle()
+
+    if (selError) {
+      return Response.json({ error: selError.message }, { status: 500 })
+    }
 
     if (existing) {
       const { error } = await supabase
