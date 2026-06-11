@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parsePagination, sanitizeSearchTerm } from '@/lib/api/validation'
+import { requireRole, isAuthError } from '@/lib/api/auth'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -131,25 +132,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
-  // Check auth
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: '인증이 필요합니다.' }, { status: 401 })
-  }
-
-  // Check role
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || !['admin', 'manager'].includes(profile.role)) {
-    return Response.json({ error: '권한이 없습니다.' }, { status: 403 })
-  }
+  const auth = await requireRole(supabase, ['admin', 'manager'])
+  if (isAuthError(auth)) return auth
 
   try {
     const body = await request.json()

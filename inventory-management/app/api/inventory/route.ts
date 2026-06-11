@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parsePagination, sanitizeSearchTerm } from '@/lib/api/validation'
+import { requireRole, isAuthError } from '@/lib/api/auth'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -116,24 +117,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: '인증이 필요합니다.' }, { status: 401 })
-  }
-
-  // Any authenticated user can create transactions
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) {
-    return Response.json({ error: '사용자 정보를 찾을 수 없습니다.' }, { status: 403 })
-  }
+  const auth = await requireRole(supabase)
+  if (isAuthError(auth)) return auth
 
   try {
     const body = await request.json()
@@ -180,7 +165,7 @@ export async function POST(request: NextRequest) {
         unit_price: unit_price ?? 0,
         total_price,
         notes: notes || null,
-        created_by: user.id,
+        created_by: auth.userId,
       })
       .select()
       .single()

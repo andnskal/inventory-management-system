@@ -1,16 +1,12 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole, isAuthError } from '@/lib/api/auth'
 
 export async function GET() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: '인증이 필요합니다.' }, { status: 401 })
-  }
+  const auth = await requireRole(supabase)
+  if (isAuthError(auth)) return auth
 
   try {
     const { data: settings, error } = await supabase
@@ -32,23 +28,8 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: '인증이 필요합니다.' }, { status: 401 })
-  }
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || profile.role !== 'admin') {
-    return Response.json({ error: '권한이 없습니다.' }, { status: 403 })
-  }
+  const auth = await requireRole(supabase, ['admin'])
+  if (isAuthError(auth)) return auth
 
   try {
     const body = await request.json()
@@ -74,7 +55,7 @@ export async function PUT(request: NextRequest) {
         .from('settings')
         .update({
           value,
-          updated_by: user.id,
+          updated_by: auth.userId,
           updated_at: new Date().toISOString(),
         })
         .eq('key', key)
@@ -88,7 +69,7 @@ export async function PUT(request: NextRequest) {
         .insert({
           key,
           value,
-          updated_by: user.id,
+          updated_by: auth.userId,
         })
 
       if (error) {

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole, isAuthError } from '@/lib/api/auth'
 
 // 조회 실패를 0/빈값으로 둔갑시키지 않기 위한 가드(2026-06-11 리뷰 #26).
 // error가 있으면 throw → 아래 try/catch가 500으로 전파한다.
@@ -16,24 +17,8 @@ export async function GET(request: NextRequest) {
   const dateTo = searchParams.get('date_to') ?? ''
   const sections = searchParams.get('sections')?.split(',') ?? []
 
-  // Check auth
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: '인증이 필요합니다.' }, { status: 401 })
-  }
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || !['admin', 'manager'].includes(profile.role)) {
-    return Response.json({ error: '권한이 없습니다.' }, { status: 403 })
-  }
+  const auth = await requireRole(supabase, ['admin', 'manager'])
+  if (isAuthError(auth)) return auth
 
   try {
     const result: Record<string, unknown> = {}

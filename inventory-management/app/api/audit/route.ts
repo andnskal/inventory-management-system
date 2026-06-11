@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { isValidDateString, parsePagination } from '@/lib/api/validation'
+import { requireRole, isAuthError } from '@/lib/api/auth'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -14,24 +15,8 @@ export async function GET(request: NextRequest) {
     { defaultPageSize: 30 }
   )
 
-  // Check auth
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: '인증이 필요합니다.' }, { status: 401 })
-  }
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || profile.role !== 'admin') {
-    return Response.json({ error: '권한이 없습니다.' }, { status: 403 })
-  }
+  const auth = await requireRole(supabase, ['admin'])
+  if (isAuthError(auth)) return auth
 
   try {
     if (dateFrom && !isValidDateString(dateFrom)) {
